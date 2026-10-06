@@ -6,6 +6,16 @@ defmodule Membrane.AAC.Parser do
   Input with encapsulation `:none` is supported, but correct AAC stream format needs to be supplied with the stream.
 
   If PTS is absent, it calculates and puts one based on the sample rate.
+
+  ## Raising on malformed ADTS headers
+
+  When the input is ADTS-encapsulated, each frame carries its own header. The element
+  raises a `RuntimeError` (naming the reason below) if a frame's header is malformed:
+
+    * `:invalid_adts_header` - the header's fixed fields don't parse (e.g. invalid sync
+      pattern).
+    * `:invalid_frame_length` - the header's `frame_length` leaves no room for any actual
+      audio payload (smaller than, or equal to, the header itself).
   """
   use Membrane.Filter
   require Membrane.Logger

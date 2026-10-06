@@ -83,6 +83,13 @@ defmodule Membrane.AAC.ParserTest do
     assert output_stream_format == input_stream_format
   end
 
+  # One ADTS frame: MPEG-4, AAC-LC, 44.1 kHz, stereo, no CRC, with a caller-chosen
+  # `frame_length` (bits 31..43 of the header) so we can forge malformed values.
+  defp adts_frame(payload, frame_length) do
+    <<0xFFF::12, 0::1, 0::2, 1::1, 1::2, 4::4, 0::1, 2::3, 0::4, frame_length::13, 0x7FF::11,
+      0::2>> <> payload
+  end
+
   test "integration" do
     pipeline =
       Testing.Pipeline.start_link_supervised!(
@@ -166,5 +173,51 @@ defmodule Membrane.AAC.ParserTest do
   test "custom sample rates are encoded and decoded correctly" do
     perform_custom_sample_rate_test(:esds)
     perform_custom_sample_rate_test(:audio_specific_config)
+  end
+
+  describe "short frame_length (< 7-byte header)" do
+    test "a header with frame_length 5 crashes the pipeline instead of swallowing later valid frames" do
+      Process.flag(:trap_exit, true)
+
+      bad = adts_frame(<<1, 2, 3, 4, 5>>, 5)
+      good = adts_frame(<<9, 9, 9>>, 10)
+
+      pipeline =
+        Testing.Pipeline.start_link_supervised!(
+          spec:
+            child(:source, %Testing.Source{output: [bad | List.duplicate(good, 1000)]})
+            |> child(:parser, %Parser{out_encapsulation: :none})
+            |> child(:sink, Testing.Sink)
+        )
+
+      assert_receive {:EXIT, ^pipeline,
+                       {:membrane_child_crash, :parser,
+                        {%RuntimeError{
+                           message: "Could not parse incoming buffer due to :invalid_frame_length"
+                         }, _stacktrace}}}
+    end
+  end
+
+  describe "zero frame_length" do
+    test "a header with frame_length 0 crashes the pipeline instead of looping forever" do
+      Process.flag(:trap_exit, true)
+
+      bad = adts_frame(<<1, 2, 3, 4, 5>>, 0)
+      good = adts_frame(<<9, 9, 9>>, 10)
+
+      pipeline =
+        Testing.Pipeline.start_link_supervised!(
+          spec:
+            child(:source, %Testing.Source{output: [bad, good]})
+            |> child(:parser, %Parser{out_encapsulation: :ADTS})
+            |> child(:sink, Testing.Sink)
+        )
+
+      assert_receive {:EXIT, ^pipeline,
+                       {:membrane_child_crash, :parser,
+                        {%RuntimeError{
+                           message: "Could not parse incoming buffer due to :invalid_frame_length"
+                         }, _stacktrace}}}
+    end
   end
 end
