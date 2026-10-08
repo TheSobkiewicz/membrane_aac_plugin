@@ -29,9 +29,8 @@ defmodule Membrane.AAC.Parser.ADTS do
     withl header:
             {:ok, frame_stream_format, header, crc, frame_length} <- parse_header(data, state),
           do: adts_size = byte_size(header) + byte_size(crc),
-          # A frame_length that leaves no room for a payload would make `extract_frame/4`
-          # either silently stall forever (negative frame_size, :none) or loop forever
-          # (a zero-byte match that never consumes `data`, :ADTS) - reject it up front.
+          # Reject up front: a too-small frame_length would otherwise make `extract_frame/4`
+          # stall (negative frame_size) or loop (zero-byte match) forever.
           length: true <- frame_length > adts_size,
           payload: {:frame, frame, rest} <- extract_frame(data, adts_size, frame_length, state) do
       stream_format =
