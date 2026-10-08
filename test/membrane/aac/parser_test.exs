@@ -191,10 +191,10 @@ defmodule Membrane.AAC.ParserTest do
         )
 
       assert_receive {:EXIT, ^pipeline,
-                       {:membrane_child_crash, :parser,
-                        {%RuntimeError{
-                           message: "Could not parse incoming buffer due to :invalid_frame_length"
-                         }, _stacktrace}}}
+                      {:membrane_child_crash, :parser,
+                       {%RuntimeError{
+                          message: "Could not parse incoming buffer due to :invalid_frame_length"
+                        }, _stacktrace}}}
     end
   end
 
@@ -214,10 +214,10 @@ defmodule Membrane.AAC.ParserTest do
         )
 
       assert_receive {:EXIT, ^pipeline,
-                       {:membrane_child_crash, :parser,
-                        {%RuntimeError{
-                           message: "Could not parse incoming buffer due to :invalid_frame_length"
-                         }, _stacktrace}}}
+                      {:membrane_child_crash, :parser,
+                       {%RuntimeError{
+                          message: "Could not parse incoming buffer due to :invalid_frame_length"
+                        }, _stacktrace}}}
     end
   end
 end
