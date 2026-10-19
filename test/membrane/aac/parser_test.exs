@@ -83,11 +83,10 @@ defmodule Membrane.AAC.ParserTest do
     assert output_stream_format == input_stream_format
   end
 
-  # One ADTS frame: MPEG-4, AAC-LC, 44.1 kHz, stereo, no CRC, with a caller-chosen
-  # `frame_length` (bits 31..43 of the header) so we can forge malformed values.
   defp adts_frame(payload, frame_length) do
-    <<0xFFF::12, 0::1, 0::2, 1::1, 1::2, 4::4, 0::1, 2::3, 0::4, frame_length::13, 0x7FF::11,
-      0::2>> <> payload
+    <<0xFFF::12, _mpeg_version_id = 0::1, 0::2, _protection_absent = 1::1, _profile_id = 1::2,
+      _sampling_frequency_id = 4::4, 0::1, _channel_config_id = 2::3, 0::4, frame_length::13,
+      0x7FF::11, 0::2, payload::binary>>
   end
 
   test "integration" do
@@ -175,49 +174,45 @@ defmodule Membrane.AAC.ParserTest do
     perform_custom_sample_rate_test(:audio_specific_config)
   end
 
-  describe "short frame_length (< 7-byte header)" do
-    test "a header with frame_length 5 crashes the pipeline instead of swallowing later valid frames" do
-      Process.flag(:trap_exit, true)
+  test "a header with frame_length 5 crashes the pipeline instead of swallowing later valid frames" do
+    bad = adts_frame(<<1, 2, 3, 4, 5>>, 5)
+    good = adts_frame(<<9, 9, 9>>, 10)
 
-      bad = adts_frame(<<1, 2, 3, 4, 5>>, 5)
-      good = adts_frame(<<9, 9, 9>>, 10)
+    pipeline =
+      Testing.Pipeline.start_supervised!(
+        spec:
+          child(:source, %Testing.Source{output: [bad | List.duplicate(good, 1000)]})
+          |> child(:parser, %Parser{out_encapsulation: :none})
+          |> child(:sink, Testing.Sink)
+      )
 
-      pipeline =
-        Testing.Pipeline.start_link_supervised!(
-          spec:
-            child(:source, %Testing.Source{output: [bad | List.duplicate(good, 1000)]})
-            |> child(:parser, %Parser{out_encapsulation: :none})
-            |> child(:sink, Testing.Sink)
-        )
+    ref = Process.monitor(pipeline)
 
-      assert_receive {:EXIT, ^pipeline,
-                      {:membrane_child_crash, :parser,
-                       {%RuntimeError{
-                          message: "Could not parse incoming buffer due to :invalid_frame_length"
-                        }, _stacktrace}}}
-    end
+    assert_receive {:DOWN, ^ref, :process, ^pipeline,
+                    {:membrane_child_crash, :parser,
+                     {%RuntimeError{
+                        message: "Could not parse incoming buffer due to :invalid_frame_length"
+                      }, _stacktrace}}}
   end
 
-  describe "zero frame_length" do
-    test "a header with frame_length 0 crashes the pipeline instead of looping forever" do
-      Process.flag(:trap_exit, true)
+  test "a header with frame_length 0 crashes the pipeline instead of looping forever" do
+    bad = adts_frame(<<1, 2, 3, 4, 5>>, 0)
+    good = adts_frame(<<9, 9, 9>>, 10)
 
-      bad = adts_frame(<<1, 2, 3, 4, 5>>, 0)
-      good = adts_frame(<<9, 9, 9>>, 10)
+    pipeline =
+      Testing.Pipeline.start_supervised!(
+        spec:
+          child(:source, %Testing.Source{output: [bad, good]})
+          |> child(:parser, %Parser{out_encapsulation: :ADTS})
+          |> child(:sink, Testing.Sink)
+      )
 
-      pipeline =
-        Testing.Pipeline.start_link_supervised!(
-          spec:
-            child(:source, %Testing.Source{output: [bad, good]})
-            |> child(:parser, %Parser{out_encapsulation: :ADTS})
-            |> child(:sink, Testing.Sink)
-        )
+    ref = Process.monitor(pipeline)
 
-      assert_receive {:EXIT, ^pipeline,
-                      {:membrane_child_crash, :parser,
-                       {%RuntimeError{
-                          message: "Could not parse incoming buffer due to :invalid_frame_length"
-                        }, _stacktrace}}}
-    end
+    assert_receive {:DOWN, ^ref, :process, ^pipeline,
+                    {:membrane_child_crash, :parser,
+                     {%RuntimeError{
+                        message: "Could not parse incoming buffer due to :invalid_frame_length"
+                      }, _stacktrace}}}
   end
 end

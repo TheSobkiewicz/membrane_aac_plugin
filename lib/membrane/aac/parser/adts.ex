@@ -29,7 +29,7 @@ defmodule Membrane.AAC.Parser.ADTS do
     withl header:
             {:ok, frame_stream_format, header, crc, frame_length} <- parse_header(data, state),
           do: adts_size = byte_size(header) + byte_size(crc),
-          length: true <- frame_length > adts_size,
+          length_valid?: true <- frame_length > adts_size,
           payload: {:frame, frame, rest} <- extract_frame(data, adts_size, frame_length, state) do
       stream_format =
         if stream_format == frame_stream_format,
@@ -43,7 +43,7 @@ defmodule Membrane.AAC.Parser.ADTS do
         {rest, frame_stream_format, next_timestamp(timestamp, frame_stream_format)}}}
     else
       header: :error -> {:error, :invalid_adts_header}
-      length: false -> {:error, :invalid_frame_length}
+      length_valid?: false -> {:error, :invalid_frame_length}
       payload: :no_frame -> {:ok, {:halt, {data, timestamp}}}
     end
   end

@@ -9,8 +9,8 @@ defmodule Membrane.AAC.Parser do
 
   Raises on a malformed ADTS frame header:
 
-    * `:invalid_adts_header` - the header's fixed fields don't parse.
-    * `:invalid_frame_length` - `frame_length` leaves no room for a payload.
+    * `:invalid_adts_header` - failed to parse ADTS header
+    * `:invalid_frame_length` - declared frame length is smaller than frame's minimum length
   """
   use Membrane.Filter
   require Membrane.Logger
