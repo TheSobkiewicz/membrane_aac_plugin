@@ -174,7 +174,7 @@ defmodule Membrane.AAC.ParserTest do
     perform_custom_sample_rate_test(:audio_specific_config)
   end
 
-  test "a header with frame_length 5 crashes the pipeline instead of swallowing later valid frames" do
+  test "a header with frame_length 5 crashes the pipeline" do
     bad = adts_frame(<<1, 2, 3, 4, 5>>, 5)
     good = adts_frame(<<9, 9, 9>>, 10)
 
@@ -195,7 +195,7 @@ defmodule Membrane.AAC.ParserTest do
                       }, _stacktrace}}}
   end
 
-  test "a header with frame_length 0 crashes the pipeline instead of looping forever" do
+  test "a header with frame_length 0 crashes the pipeline" do
     bad = adts_frame(<<1, 2, 3, 4, 5>>, 0)
     good = adts_frame(<<9, 9, 9>>, 10)
 
